@@ -1,0 +1,7 @@
+service genivi.audiorelay /vendor/bin/genivi.audiorelay
+    class main
+    user system
+    group system
+
+on post-fs-data
+    start genivi.audiorelay

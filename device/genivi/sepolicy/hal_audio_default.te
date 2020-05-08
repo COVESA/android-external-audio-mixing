@@ -1,0 +1,2 @@
+allow hal_audio_default genivi_audiorelay:unix_dgram_socket sendto;
+
