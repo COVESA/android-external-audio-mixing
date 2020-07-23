@@ -50,6 +50,7 @@
 #define PCM_DEVICE 0
 
 #define EXT_PCM_SOCKET "#genivi_audio_relay_in"
+#define EXT_PCM_RECEIVER_PREFIX "#genivi_audio_relay_in_"
 #define THIS_HAL_SOCKET "#genivi_audio_hal"
 
 #define OUT_PERIOD_MS 15
@@ -63,6 +64,27 @@
 #define PROP_KEY_SIMULATE_MULTI_ZONE_AUDIO "ro.aae.simulateMultiZoneAudio"
 
 static int adev_get_mic_mute(const struct audio_hw_device *dev, bool *state);
+
+/* copied from libcutils/str_parms.c */
+static bool str_eq(void *key_a, void *key_b) {
+  return !strcmp((const char *)key_a, (const char *)key_b);
+}
+
+/**
+ * use djb hash unless we find it inadequate.
+ * copied from libcutils/str_parms.c
+ */
+#ifdef __clang__
+__attribute__((no_sanitize("integer")))
+#endif
+static int str_hash_fn(void *str) {
+  uint32_t hash = 5381;
+  char *p;
+  for (p = str; p && *p; p++) {
+    hash = ((hash << 5) + hash) + *p;
+  }
+  return (int)hash;
+}
 
 static struct pcm_config pcm_config_out = {
     .channels = 2,
@@ -234,19 +256,13 @@ int create_socket(int *fd, const char* socket_name) {
 static void *out_write_worker(void *args) {
     struct generic_stream_out *out = (struct generic_stream_out *)args;
     struct ext_pcm *ext_pcm = NULL;
+    Hashmap *bus_sockets = NULL;
     uint8_t *buffer = NULL;
     int buffer_frames;
     int buffer_size;
     bool restart = false;
     bool shutdown = false;
-    int sockfd = 0;
     ssize_t sent = 0;
-    struct sockaddr_un serv_addr;
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sun_family = AF_UNIX;
-    snprintf(serv_addr.sun_path, sizeof(serv_addr.sun_path), "%s", EXT_PCM_SOCKET);
-    serv_addr.sun_path[0] = 0;
-    socklen_t serv_addr_len = sizeof(sa_family_t) + strlen(EXT_PCM_SOCKET);
     while (true) {
         pthread_mutex_lock(&out->lock);
         while (out->worker_standby || restart) {
@@ -259,10 +275,6 @@ static void *out_write_worker(void *args) {
             }
             if (out->worker_exit) {
                 break;
-            }
-            if (sockfd) {
-                close(sockfd);
-                sockfd = 0;
             }
             pthread_cond_wait(&out->worker_wake, &out->lock);
         }
@@ -284,8 +296,9 @@ static void *out_write_worker(void *args) {
         }
 
         if (!ext_pcm) {
-            ALOGE("PK>> Creating socket to genivi audiorelay");
-            create_socket(&sockfd, THIS_HAL_SOCKET);
+            if (!bus_sockets) {
+              bus_sockets = hashmapCreate(5, str_hash_fn, str_eq);
+            }
 
             ext_pcm = ext_pcm_open(PCM_CARD, PCM_DEVICE,
                     PCM_OUT | PCM_MONOTONIC, &out->pcm_config);
@@ -308,6 +321,15 @@ static void *out_write_worker(void *args) {
                 break;
             }
         }
+        int* sock = hashmapGet(bus_sockets, &out->bus_address);
+        if (!sock) {
+          int *fd = malloc(sizeof(int));
+          if ((*fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
+            ALOGE("PK>> socket creation error errno: , errstr: ", errno, strerror(errno));
+          }
+          hashmapPut(bus_sockets, &out->bus_address, fd);
+          sock = fd;
+        }
         int frames = audio_vbuffer_read(&out->buffer, buffer, buffer_frames);
         pthread_mutex_unlock(&out->lock);
         int write_error = ext_pcm_write(ext_pcm, out->bus_address,
@@ -319,11 +341,19 @@ static void *out_write_worker(void *args) {
             ALOGV("pcm_write succeed address %s", out->bus_address);
         }
 
-        sent = sendto(sockfd, buffer, ext_pcm_frames_to_bytes(ext_pcm, frames), 0,
-                (struct sockaddr *)&serv_addr, serv_addr_len);
+        char* socket_path = malloc(strlen(EXT_PCM_RECEIVER_PREFIX) + strlen(out->bus_address) + 2);
+        strcpy(socket_path, EXT_PCM_RECEIVER_PREFIX);
+        strcat(socket_path, out->bus_address);
+        struct sockaddr_un serv_addr;
+        memset(&serv_addr, 0, sizeof(serv_addr));
+        serv_addr.sun_family = AF_UNIX;
+        snprintf(serv_addr.sun_path, sizeof(serv_addr.sun_path), "%s", socket_path);
+        serv_addr.sun_path[0] = 0;
+      socklen_t serv_addr_len = sizeof(sa_family_t) + strlen(socket_path);
+        sent = sendto(*sock, buffer, ext_pcm_frames_to_bytes(ext_pcm, frames), 0, (struct sockaddr *)&serv_addr, serv_addr_len);
         if (sent < 0) {
-          ALOGE("PK>> sending socket ret value is %zd, errno: %d: %s",
-                sent, errno, strerror(errno));
+          ALOGE("PK>> sending socket ret value is %zd, errno: %d: %s, path: %s",
+                sent, errno, strerror(errno), socket_path);
         }
     }
     if (buffer) {
@@ -1386,27 +1416,6 @@ static int adev_close(hw_device_t *dev) {
 error:
     pthread_mutex_unlock(&adev_init_lock);
     return ret;
-}
-
-/* copied from libcutils/str_parms.c */
-static bool str_eq(void *key_a, void *key_b) {
-    return !strcmp((const char *)key_a, (const char *)key_b);
-}
-
-/**
- * use djb hash unless we find it inadequate.
- * copied from libcutils/str_parms.c
- */
-#ifdef __clang__
-__attribute__((no_sanitize("integer")))
-#endif
-static int str_hash_fn(void *str) {
-    uint32_t hash = 5381;
-    char *p;
-    for (p = str; p && *p; p++) {
-        hash = ((hash << 5) + hash) + *p;
-    }
-    return (int)hash;
 }
 
 static int adev_open(const hw_module_t *module,
