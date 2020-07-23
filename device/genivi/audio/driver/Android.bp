@@ -23,34 +23,8 @@ cc_library_shared {
 
     srcs: [
         "audio_hw.c",
-    ],
-
-    include_dirs: ["external/tinyalsa/include"],
-
-    shared_libs: [
-        "libcutils",
-        "liblog",
-        "libdl",
-        "libtinyalsa",
-    ],
-
-    cflags: ["-Wno-unused-parameter"],
-    header_libs: [
-        "libhardware_headers",
-        "libcutils_headers",
-    ],
-
-}
-
-
-cc_library_shared {
-
-    vendor: true,
-    name: "audio.primary.genivi_legacy",
-    relative_install_path: "hw",
-
-    srcs: [
-        "audio_hw_legacy.c",
+        "audio_vbuffer.c",
+        "ext_pcm.c",
     ],
 
     include_dirs: ["external/tinyalsa/include"],
