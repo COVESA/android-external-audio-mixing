@@ -1,0 +1,8 @@
+type genivi_audiorelay, domain;
+type genivi_audiorelay_exec, exec_type, vendor_file_type, file_type;
+init_daemon_domain(genivi_audiorelay);
+
+#net_domain(genivi.audiorelay);
+allow genivi_audiorelay self:tcp_socket { create connect getopt write };
+allow genivi_audiorelay port:tcp_socket name_connect;
+
