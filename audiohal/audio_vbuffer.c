@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "audio_hw_generic"
+#define LOG_TAG "audio_hw_genivi_vbuffer"
 
 #include <errno.h>
 #include <stdlib.h>

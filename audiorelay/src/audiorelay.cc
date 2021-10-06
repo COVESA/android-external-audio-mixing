@@ -3,19 +3,20 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/in.h>
+#include <linux/vm_sockets.h>
+#include <map>
+#include <pthread.h>
+#include <stdio.h>
+#include <string>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
-#include <linux/in.h>
-#include <fcntl.h>
-#include <stdio.h>
 #include <unistd.h>
-#include <errno.h>
-#include <arpa/inet.h>
-#include <pthread.h>
-#include <map>
 #include <vector>
-#include <string>
 
 #include <android/log.h>
 
@@ -27,9 +28,8 @@
 
 const char* kServerSocketPrefix = "#genivi_audio_relay_in_";
 const char* kTargetAudioIp = "10.0.2.2";
-const int kTargetAudioPort = 5000;
 
-const uint64_t kRecvBufferLength = 1024 * 5;
+const uint64_t kRecvBufferLength = 2880;
 bool local_shutdown = false;
 
 #undef LOG_TAG
@@ -37,13 +37,13 @@ bool local_shutdown = false;
 
 std::map<std::string, int> bus_sockets = {
     {"bus0_media_out", 5000  },
-    {"bus3_call_ring_out", 5001 },
-    {"bus6_notification_out", 5002 },
-    {"bus7_system_sound_out", 5003 },
-    {"bus1_navigation_out", 5004 },
-    {"bus2_voice_command_out", 5005 },
-    {"bus4_call_out", 5006 },
-    {"bus5_alarm_out", 5007 }
+    // {"bus3_call_ring_out", 5001 },
+    // {"bus6_notification_out", 5002 },
+    // {"bus7_system_sound_out", 5003 },
+    // {"bus1_navigation_out", 5004 },
+    // {"bus2_voice_command_out", 5005 },
+    // {"bus4_call_out", 5006 },
+    // {"bus5_alarm_out", 5007 }
 };
 
 int create_server(int *fd, std::string socket_name) {
@@ -69,15 +69,15 @@ int create_server(int *fd, std::string socket_name) {
     return 0;
 }
 
-int create_client_socket(int* sockfd, const char* address, int port) {
-    if((*sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+int create_client_socket(int* sockfd, const char* /*address*/, int port) {
+    if((*sockfd = socket(AF_VSOCK, SOCK_STREAM, 0)) < 0)
     {
       LOGE("PK>> Cant create audio socket %d, error: %s", errno, strerror(errno));
     }
-    struct sockaddr_in serv_addr;
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = inet_addr(address);
-    serv_addr.sin_port = htons(port);
+    struct sockaddr_vm serv_addr;
+    serv_addr.svm_family = AF_VSOCK;
+    serv_addr.svm_cid = 2;
+    serv_addr.svm_port = port;
     if (connect(*sockfd, (struct sockaddr *)&serv_addr , sizeof(serv_addr)) < 0)
     {
       LOGE("PK>> Cant connect audio socket %d %s", errno, strerror(errno));
@@ -111,7 +111,7 @@ static void *forward(void* args) {
     return NULL;
 }
 
-int main(int argc, char *argv[]) {
+int main() {
   std::vector<pthread_t> relays;
   pthread_t relay;
   for (auto entry : bus_sockets) {
@@ -129,3 +129,4 @@ int main(int argc, char *argv[]) {
   LOGI("Shutting down.");
   return 0;
 }
+

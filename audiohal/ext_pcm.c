@@ -79,8 +79,8 @@ static void *mixer_thread_loop(void *context) {
     hashmapForEach(ext_pcm->mixer_pipeline_map, mixer_thread_mix,
         &ext_pcm->mixer_pipeline);
     if (ext_pcm->mixer_pipeline.position > 0) {
-      pcm_write(ext_pcm->pcm, (void *)ext_pcm->mixer_pipeline.buffer,
-          ext_pcm->mixer_pipeline.position * sizeof(int16_t));
+      // pcm_write(ext_pcm->pcm, (void *)ext_pcm->mixer_pipeline.buffer,
+          // ext_pcm->mixer_pipeline.position * sizeof(int16_t));
     }
     memset(&ext_pcm->mixer_pipeline, 0, sizeof(struct ext_mixer_pipeline));
     pthread_mutex_unlock(&ext_pcm->mixer_lock);
@@ -114,7 +114,7 @@ struct ext_pcm *ext_pcm_open(unsigned int card, unsigned int device,
   if (shared_ext_pcm == NULL) {
     shared_ext_pcm = calloc(1, sizeof(struct ext_pcm));
     pthread_mutex_init(&shared_ext_pcm->lock, (const pthread_mutexattr_t *) NULL);
-    shared_ext_pcm->pcm = pcm_open(card, device, flags, config);
+    // shared_ext_pcm->pcm = pcm_open(card, device, flags, config);
     pthread_mutex_init(&shared_ext_pcm->mixer_lock, (const pthread_mutexattr_t *)NULL);
     pthread_create(&shared_ext_pcm->mixer_thread, (const pthread_attr_t *)NULL,
             mixer_thread_loop, shared_ext_pcm);
@@ -147,7 +147,7 @@ int ext_pcm_close(struct ext_pcm *ext_pcm) {
   pthread_mutex_lock(&ext_pcm_init_lock);
   if (ext_pcm->ref_count <= 0) {
     pthread_mutex_destroy(&ext_pcm->lock);
-    pcm_close(ext_pcm->pcm);
+    // pcm_close(ext_pcm->pcm);
     pthread_mutex_destroy(&ext_pcm->mixer_lock);
     hashmapForEach(ext_pcm->mixer_pipeline_map, mixer_free_pipeline,
         (void *)NULL);
@@ -161,11 +161,12 @@ int ext_pcm_close(struct ext_pcm *ext_pcm) {
 }
 
 int ext_pcm_is_ready(struct ext_pcm *ext_pcm) {
-  if (ext_pcm == NULL || ext_pcm->pcm == NULL) {
-    return 0;
-  }
+  // if (ext_pcm == NULL || ext_pcm->pcm == NULL) {
+  //   return 0;
+  // }
 
-  return pcm_is_ready(ext_pcm->pcm);
+  // return pcm_is_ready(ext_pcm->pcm);
+  return 1;
 }
 
 int ext_pcm_write(struct ext_pcm *ext_pcm, const char *address,
@@ -187,9 +188,9 @@ const char *ext_pcm_get_error(struct ext_pcm *ext_pcm) {
 
 unsigned int ext_pcm_frames_to_bytes(struct ext_pcm *ext_pcm,
                                      unsigned int frames) {
-  if (ext_pcm == NULL || ext_pcm->pcm == NULL) {
-    return -EINVAL;
-  }
-
-  return pcm_frames_to_bytes(ext_pcm->pcm, frames);
+  // if (ext_pcm == NULL || ext_pcm->pcm == NULL) {
+  //   return -EINVAL;
+  // }
+  return frames * 2 * 2;
+  // return pcm_frames_to_bytes(ext_pcm->pcm, frames);
 }
