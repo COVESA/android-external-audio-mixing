@@ -1,0 +1,4 @@
+service vendor.audiocontrol-hal-1.0 /vendor/bin/hw/android.hardware.audiocontrol@1.0-service.genivi
+    class hal
+    user audioserver
+    group system

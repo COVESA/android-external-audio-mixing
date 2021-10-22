@@ -1,0 +1,181 @@
+// Copyright (C) 2021 TietoEVRY
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+cc_defaults {
+    name: "audio_control_hal_v1_0_default_genivi",
+    defaults: [
+        "hidl_defaults",
+    ],
+    shared_libs: [
+        "android.hardware.automotive.audiocontrol@1.0",
+        "libbase",
+        "libhidlbase",
+        "liblog",
+        "libutils",
+    ],
+}
+
+genrule {
+    name: "GeniviAudioControlProtoStub_h",
+    tools: [
+        "aprotoc",
+        "protoc-gen-grpc-cpp-plugin",
+    ],
+    cmd: "$(location aprotoc) -I$$(dirname $(in)) -Iexternal/protobuf/src --plugin=protoc-gen-grpc=$(location protoc-gen-grpc-cpp-plugin) $(in) --grpc_out=$(genDir) --cpp_out=$(genDir)",
+    srcs: [
+        "proto/GeniviAudioControl.proto",
+    ],
+    out: [
+        "GeniviAudioControl.pb.h",
+        "GeniviAudioControl.grpc.pb.h",
+    ],
+}
+
+genrule {
+    name: "GeniviAudioControlProtoStub_cc",
+    tools: [
+        "aprotoc",
+        "protoc-gen-grpc-cpp-plugin",
+    ],
+    cmd: "$(location aprotoc) -I$$(dirname $(in)) -Iexternal/protobuf/src --plugin=protoc-gen-grpc=$(location protoc-gen-grpc-cpp-plugin) $(in) --grpc_out=$(genDir) --cpp_out=$(genDir)",
+    srcs: [
+        "proto/GeniviAudioControl.proto",
+    ],
+    out: [
+        "GeniviAudioControl.pb.cc",
+        "GeniviAudioControl.grpc.pb.cc",
+    ],
+}
+
+cc_library_static {
+    name: "android.hardware.audiocontrol@1.0-service-grpc-comm",
+    vendor: true,
+    host_supported: true,
+    defaults: ["audio_control_hal_v1_0_default_genivi"],
+    srcs: [
+        "AudioControlClient.cpp",
+    ],
+    include_dirs: [
+        "external/protobuf/src",
+    ],
+    generated_headers: [
+        "GeniviAudioControlProtoStub_h",
+    ],
+    export_generated_headers: [
+        "GeniviAudioControlProtoStub_h",
+    ],
+    generated_sources: [
+        "GeniviAudioControlProtoStub_cc",
+    ],
+    whole_static_libs: [
+        "android.hardware.automotive.utils.vsockinfo",
+    ],
+    shared_libs: [
+        "libgrpc++_unsecure",
+    ],
+    cflags: [
+        "-Wno-unused-parameter",
+    ],
+}
+
+cc_library_static {
+    name: "android.hardware.audiocontrol@1.0-server-grpc-comm",
+    vendor: true,
+    host_supported: true,
+    defaults: ["audio_control_hal_v1_0_default_genivi"],
+    srcs: [
+        "AudioControlServer.cpp",
+    ],
+    include_dirs: [
+        "external/protobuf/src",
+    ],
+    generated_headers: [
+        "GeniviAudioControlProtoStub_h",
+    ],
+    export_generated_headers: [
+        "GeniviAudioControlProtoStub_h",
+    ],
+    generated_sources: [
+        "GeniviAudioControlProtoStub_cc",
+    ],
+    whole_static_libs: [
+        "android.hardware.automotive.utils.vsockinfo",
+    ],
+    shared_libs: [
+        "libgrpc++_unsecure",
+    ],
+    cflags: [
+        "-Wno-unused-parameter",
+    ],
+}
+
+cc_binary {
+    name: "android.hardware.audiocontrol@1.0-server.genivi",
+    defaults: ["audio_control_hal_v1_0_default_genivi"],
+    vendor: true,
+    host_supported: true,
+    srcs: [
+        "server.cpp",
+    ],
+    static_libs: [
+        "android.hardware.audiocontrol@1.0-server-grpc-comm",
+    ],
+    shared_libs: [
+        "libbase",
+        "libjsoncpp",
+        "libprotobuf-cpp-full",
+        "libgrpc++",
+    ],
+//    export_include_dirs: ["."],
+    cflags: [
+        "-Wno-unused-parameter",
+    ],
+}
+
+cc_binary {
+    name: "android.hardware.audiocontrol@1.0-remote.server.genivi",
+    defaults: ["audio_control_hal_v1_0_default_genivi"],
+    vendor: true,
+    host_supported: true,
+    srcs: [
+        "server2.cpp",
+    ],
+    static_libs: [
+        "android.hardware.audiocontrol@1.0-server-grpc-comm",
+    ],
+    shared_libs: [
+        "libbase",
+        "libjsoncpp",
+        "libprotobuf-cpp-full",
+        "libgrpc++",
+    ],
+//    export_include_dirs: ["."],
+    cflags: [
+        "-Wno-unused-parameter",
+    ],
+}
+
+cc_binary {
+    name: "android.hardware.audiocontrol@1.0-service.genivi",
+    defaults: ["audio_control_hal_v1_0_default_genivi"],
+    vendor: true,
+    relative_install_path: "hw",
+    srcs: [
+        "AudioControl.cpp",
+        "service.cpp",
+    ],
+    init_rc: ["android.hardware.audiocontrol@1.0-service.genivi.rc"],
+    static_libs: [
+        "android.hardware.audiocontrol@1.0-service-grpc-comm",
+    ],
+    shared_libs: [
+        "android.hardware.automotive.utils.watchdog",
+        "carwatchdog_aidl_interface-ndk_platform",
+        "libcutils",
+        "libprotobuf-cpp-full",
+        "libgrpc++",
+    ],
+    vintf_fragments: ["manifest_android.hardware.audiocontrol@1.0-service.genivi.xml"],
+}

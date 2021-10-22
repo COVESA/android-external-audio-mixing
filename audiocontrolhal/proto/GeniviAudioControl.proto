@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package genivi_audio_control_proto;
+
+import "google/protobuf/wrappers.proto";
+
+service GeniviAudioControl {
+    rpc setBalanceTowardRight(google.protobuf.FloatValue) returns (google.protobuf.Int32Value);
+    rpc setFadeTowardFront(google.protobuf.FloatValue) returns (google.protobuf.Int32Value);
+}

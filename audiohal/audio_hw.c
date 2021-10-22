@@ -19,7 +19,7 @@
  * Changes made to adding support of AUDIO_DEVICE_OUT_BUS
  */
 
-#define LOG_TAG "audio_hw_generic"
+#define LOG_TAG "audio_hw_genivi"
 
 #include <assert.h>
 #include <errno.h>
@@ -294,12 +294,11 @@ static void *out_write_worker(void *args) {
             pthread_mutex_unlock(&out->lock);
             break;
         }
+        if (!bus_sockets) {
+            bus_sockets = hashmapCreate(5, str_hash_fn, str_eq);
+        }
 
         if (!ext_pcm) {
-            if (!bus_sockets) {
-              bus_sockets = hashmapCreate(5, str_hash_fn, str_eq);
-            }
-
             ext_pcm = ext_pcm_open(PCM_CARD, PCM_DEVICE,
                     PCM_OUT | PCM_MONOTONIC, &out->pcm_config);
             if (!ext_pcm_is_ready(ext_pcm)) {
@@ -321,25 +320,28 @@ static void *out_write_worker(void *args) {
                 break;
             }
         }
+
         int* sock = hashmapGet(bus_sockets, &out->bus_address);
         if (!sock) {
           int *fd = malloc(sizeof(int));
           if ((*fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
-            ALOGE("PK>> socket creation error errno: , errstr: ", errno, strerror(errno));
+            ALOGE("PK>> socket creation error errno: %s, errstr: %d", errno, strerror(errno));
+          } else {
+              ALOGD("PK>> created socket %s", &out->bus_address);
           }
           hashmapPut(bus_sockets, &out->bus_address, fd);
           sock = fd;
         }
         int frames = audio_vbuffer_read(&out->buffer, buffer, buffer_frames);
         pthread_mutex_unlock(&out->lock);
-        int write_error = ext_pcm_write(ext_pcm, out->bus_address,
-                buffer, ext_pcm_frames_to_bytes(ext_pcm, frames));
-        if (write_error) {
-            ALOGE("pcm_write failed %s address %s", ext_pcm_get_error(ext_pcm), out->bus_address);
-            restart = true;
-        } else {
-            ALOGV("pcm_write succeed address %s", out->bus_address);
-        }
+//        int write_error = ext_pcm_write(ext_pcm, out->bus_address,
+//                buffer, ext_pcm_frames_to_bytes(ext_pcm, frames));
+//        if (write_error) {
+//            ALOGE("pcm_write failed %s address %s", ext_pcm_get_error(ext_pcm), out->bus_address);
+//            restart = true;
+//        } else {
+//            ALOGV("pcm_write succeed address %s", out->bus_address);
+//        }
 
         char* socket_path = malloc(strlen(EXT_PCM_RECEIVER_PREFIX) + strlen(out->bus_address) + 2);
         strcpy(socket_path, EXT_PCM_RECEIVER_PREFIX);
@@ -354,6 +356,8 @@ static void *out_write_worker(void *args) {
         if (sent < 0) {
           ALOGE("PK>> sending socket ret value is %zd, errno: %d: %s, path: %s",
                 sent, errno, strerror(errno), socket_path);
+//      } else {
+//          ALOGD("Sent to path: %s", socket_path);
         }
     }
     if (buffer) {
